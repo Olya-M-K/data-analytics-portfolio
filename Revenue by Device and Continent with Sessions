@@ -1,0 +1,85 @@
+WITH
+  Continent_Revenue AS (
+  SELECT
+    sp.continent AS Continent,
+    SUM(p.price) AS Revenue,
+    SUM(CASE
+        WHEN device = 'mobile' THEN p.price
+    END
+      ) AS Revenue_from_Mobile,
+    SUM(CASE
+        WHEN device = 'desktop' THEN p.price
+    END
+      ) AS Revenue_from_Desktop
+  FROM
+    `data-analytics-mate.DA.order` AS o
+  JOIN
+    `data-analytics-mate.DA.product` AS p
+  ON
+    o.item_id=p.item_id
+  JOIN
+    `data-analytics-mate.DA.session_params` AS sp
+  ON
+    o.ga_session_id=sp.ga_session_id
+  GROUP BY
+    sp.continent),
+  Total_Revenue AS (
+  SELECT
+    Continent,
+    Revenue/SUM(Revenue) OVER ()*100 AS Revenue_from_Total
+  FROM (
+    SELECT
+      sp.continent AS Continent,
+      SUM(p.price) AS Revenue
+    FROM
+      `data-analytics-mate.DA.order` AS o
+    JOIN
+      `data-analytics-mate.DA.product` AS p
+    ON
+      o.item_id=p.item_id
+    JOIN
+      `data-analytics-mate.DA.session_params` AS sp
+    ON
+      o.ga_session_id=sp.ga_session_id
+    GROUP BY
+      sp.continent )),
+  Account AS (
+  SELECT
+    sp.continent AS Continent,
+    COUNT(sp.ga_session_id) AS Session_Count,
+    COUNT(ac.account_id) AS Account_Count,
+    COUNT (CASE
+        WHEN a.is_verified = 1 THEN a.id
+    END
+      ) AS Verified_Account
+  FROM
+    `DA.session_params` sp
+  LEFT JOIN
+    `DA.account_session` ac
+  ON
+    sp.ga_session_id = ac.ga_session_id
+  LEFT JOIN
+    `data-analytics-mate.DA.account`AS a
+  ON
+    ac.account_id=a.id
+  GROUP BY
+    sp.continent )
+SELECT
+  Continent_Revenue.Continent,
+  Continent_Revenue.Revenue,
+  Continent_Revenue.Revenue_from_Mobile,
+  Continent_Revenue.Revenue_from_Desktop,
+  Total_Revenue.Revenue_from_Total,
+  Account.Account_Count,
+  Account.Verified_Account,
+  Account.Session_Count
+FROM
+  Continent_Revenue
+JOIN
+  Account
+ON
+  Continent_Revenue.Continent=Account.Continent
+JOIN
+  Total_Revenue
+ON
+  Continent_Revenue.Continent=Total_Revenue.Continent
